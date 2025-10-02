@@ -59,10 +59,11 @@ public class OVRGrabber : MonoBehaviour
     // Should be OVRInput.Controller.LTouch or OVRInput.Controller.RTouch.
     [SerializeField]
     protected OVRInput.Controller m_controller;
+    public OVRInput.Controller Controller { get { return m_controller; } }
 
-	// You can set this explicitly in the inspector if you're using m_moveHandPosition.
-	// Otherwise, you should typically leave this null and simply parent the hand to the hand anchor
-	// in your scene, using Unity's inspector.
+    // You can set this explicitly in the inspector if you're using m_moveHandPosition.
+    // Otherwise, you should typically leave this null and simply parent the hand to the hand anchor
+    // in your scene, using Unity's inspector.
     [SerializeField]
     protected Transform m_parentTransform;
 
