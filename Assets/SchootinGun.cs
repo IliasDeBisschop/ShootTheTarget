@@ -19,8 +19,19 @@ public class SchootinGun : MonoBehaviour
         System.Diagnostics.Debug.WriteLine("Hello from System Debug!");
 
         grabable = GetComponent<OVRGrabbable>();
-        firePoint = GetComponent<Transform>().Find("FirePoint");
-        bulletPrefab = Resources.Load<GameObject>("BulletPrefab");
+        
+        // Only find FirePoint if not set in Inspector
+        if (firePoint == null)
+        {
+            firePoint = GetComponent<Transform>().Find("FirePoint");
+        }
+        
+        // Only load from Resources if not set in Inspector
+        if (bulletPrefab == null)
+        {
+            bulletPrefab = Resources.Load<GameObject>("BulletPrefab");
+        }
+        
         audioSource = GetComponent<AudioSource>();
     }
 
@@ -35,14 +46,40 @@ public class SchootinGun : MonoBehaviour
        
         if (grabable.isGrabbed && OVRInput.GetDown(shootButton, grabable.grabbedBy.Controller))
         {
+            // Check if required components are available
+            if (bulletPrefab == null)
+            {
+                UnityEngine.Debug.LogError("BulletPrefab is not assigned!");
+                return;
+            }
+            
+            if (firePoint == null)
+            {
+                UnityEngine.Debug.LogError("FirePoint is not assigned!");
+                return;
+            }
             
             UnityEngine.Debug.Log("shoot");
 
             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
             Rigidbody rb = bullet.GetComponent<Rigidbody>();
+            
+            // Check if Rigidbody exists, if not add one
+            if (rb == null)
+            {
+                UnityEngine.Debug.LogWarning("Bullet prefab missing Rigidbody component. Adding one dynamically.");
+                rb = bullet.AddComponent<Rigidbody>();
+            }
+            
+            // Check if BoxCollider exists, if not add one
+            BoxCollider boxCollider = bullet.GetComponent<BoxCollider>();
+            if (boxCollider == null)
+            {
+                UnityEngine.Debug.LogWarning("Bullet prefab missing BoxCollider component. Adding one dynamically.");
+                boxCollider = bullet.AddComponent<BoxCollider>();
+            }
+            
             rb.velocity = firePoint.forward * bulletSpeed;
-
-
         }
     }
 }
