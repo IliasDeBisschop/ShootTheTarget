@@ -61,6 +61,7 @@ public class SchootinGun : MonoBehaviour
             
             UnityEngine.Debug.Log("shoot");
 
+            // Instantiate bullet at firePoint position with firePoint rotation
             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
             Rigidbody rb = bullet.GetComponent<Rigidbody>();
             
@@ -79,7 +80,13 @@ public class SchootinGun : MonoBehaviour
                 boxCollider = bullet.AddComponent<BoxCollider>();
             }
             
-            rb.velocity = firePoint.forward * bulletSpeed;
+            // Make sure the bullet rotates to face the direction it's traveling
+            Vector3 shootDirection = firePoint.forward;
+            bullet.transform.rotation = Quaternion.LookRotation(shootDirection);
+            
+            // Set velocity in the forward direction of the firePoint
+            rb.velocity = shootDirection * bulletSpeed;
+            
         }
     }
 }
