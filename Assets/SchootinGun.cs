@@ -88,12 +88,29 @@ public class SchootinGun : MonoBehaviour
                 bulletRenderer.enabled = true;
             }
 
+            // Zet useGravity aan op de hoofd-Rigidbody en eventuele child Rigidbodies
+            if (rb != null)
+            {
+                rb.useGravity = true;
+                foreach (var childRb in bullet.GetComponentsInChildren<Rigidbody>(true))
+                {
+                    if (childRb != null) childRb.useGravity = true;
+                }
+            }
+            else
+            {
+                UnityEngine.Debug.LogWarning("Bullet has no Rigidbody, cannot enable gravity.");
+            }
+
             // Make sure the bullet rotates to face the direction it's traveling
             Vector3 shootDirection = firePoint.forward;
             bullet.transform.rotation = Quaternion.LookRotation(shootDirection);
 
             // Set velocity in the forward direction of the firePoint
-            rb.velocity = shootDirection * bulletSpeed;
+            if (rb != null)
+            {
+                rb.velocity = shootDirection * bulletSpeed;
+            }
 
             // --- Schakel specifiek de componenten "colliding" en "autoDespane" in (case-insensitive) ---
             foreach (MonoBehaviour mb in bullet.GetComponentsInChildren<MonoBehaviour>(true))

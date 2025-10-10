@@ -4,7 +4,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Text.RegularExpressions;
- 
+
+[RequireComponent(typeof(Rigidbody), typeof(Collider))]
 public class colliding : MonoBehaviour
 {
     [SerializeField] private float innerRadius = 0.02515134f;   // afstand voor bullseye (10 punten)
@@ -19,7 +20,7 @@ public class colliding : MonoBehaviour
     [SerializeField] private Text scoreText;                    // optionele reference in inspector
     [SerializeField] private string scoreObjectName = "score Text"; // naam van het UI-object
 
-    // audio: mp3/AudioClip om af te spelen bij vernietigen
+    // audio: mp3/AudioClip om af te spelen bij vernietiging
     [SerializeField] private AudioClip destroyClip;
     [SerializeField, Range(0f, 1f)] private float destroyVolume = 1f;
 
@@ -76,6 +77,7 @@ public class colliding : MonoBehaviour
             {
                 if (h.collider != null && h.collider.CompareTag("Target"))
                 {
+                    Debug.Log($"[colliding] Raycast hit {h.collider.name}");
                     ProcessHit(h.point, h.collider.transform);
                     break;
                 }
@@ -87,9 +89,27 @@ public class colliding : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
+        Debug.Log($"[colliding] OnCollisionEnter with {collision.gameObject.name} tag={collision.gameObject.tag}");
         try
         {
-            if (!collision.gameObject.CompareTag("Target")) return;
+            if (collision.gameObject.CompareTag("Gun")) return;
+            if (!collision.gameObject.CompareTag("Target"))
+            {
+                Debug.Log($"[colliding] non-Target, destroying bullet. {collision.gameObject.name}, tag={collision.gameObject.tag}");
+
+                if (!hitProcessed)
+                {
+                    hitProcessed = true;
+                    // speel geluid bij impact (zelfde destroyClip wordt gebruikt)
+                    if (destroyClip != null && destroyVolume > 0f)
+                    {
+                        AudioSource.PlayClipAtPoint(destroyClip, transform.position, destroyVolume);
+                    }
+                    Destroy(gameObject);
+                }
+
+                return;
+            }
         }
         catch (UnityException)
         {
@@ -110,16 +130,31 @@ public class colliding : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        Debug.Log($"[colliding] OnTriggerEnter with {other.gameObject.name} tag={other.gameObject.tag}");
         try
         {
-            if (!other.CompareTag("Target")) return;
+            if (!other.CompareTag("Target")) {
+                Debug.Log($"[colliding] Trigger enter with non-Target, destroying bullet. {other.gameObject.name}");
+
+                if (!hitProcessed)
+                {
+                    hitProcessed = true;
+                    if (destroyClip != null && destroyVolume > 0f)
+                    {
+                        AudioSource.PlayClipAtPoint(destroyClip, transform.position, destroyVolume);
+                    }
+                    Destroy(gameObject);
+                }
+
+                return;
+            }
         }
         catch (UnityException)
         {
-            Debug.LogWarning("Tag 'Target' niet gedefinieerd.");
+            Debug.Log("Tag 'Target' niet gedefinieerd.");
             return;
         }
-
+        Debug.Log($"[colliding] Trigger enter with Target {other.gameObject.name}");
         if (hitProcessed) return;
 
         Transform targetT = other.transform;
@@ -171,9 +206,14 @@ public class colliding : MonoBehaviour
         }
 
         // speel geluid (mp3 als AudioClip) vlak voor vernietiging
-        if (destroyClip != null)
+        if (destroyClip != null && destroyVolume > 0f)
         {
+            Debug.Log("[colliding] Playing destroyClip");
             AudioSource.PlayClipAtPoint(destroyClip, transform.position, destroyVolume);
+        }
+        else
+        {
+            Debug.LogWarning("[colliding] destroyClip ontbreekt of volume is 0");
         }
 
         Destroy(gameObject);
