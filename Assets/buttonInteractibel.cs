@@ -33,6 +33,9 @@ public class buttonInteractibel : MonoBehaviour
     public Camera uiCamera;
     private TextMeshProUGUI scoreTMP;
 
+    [Tooltip("OVR trigger knop die gebruikt wordt (kan in de Inspector aangepast worden)")]
+    public OVRInput.Button ovrTriggerButton = OVRInput.Button.PrimaryIndexTrigger;
+
     void Start()
     {
         if (scoreText == null)
@@ -72,20 +75,8 @@ public class buttonInteractibel : MonoBehaviour
 
     bool TriggerPressed()
     {
-        // Probeer XR trigger (linkerhand). Pas XRNode aan naar RightHand indien nodig.
-        InputDevice device = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
-        bool trigger = false;
-        if (device.isValid)
-        {
-            if (device.TryGetFeatureValue(CommonUsages.triggerButton, out trigger) && trigger)
-                return true;
-        }
-
-        // Fallback: standaard Input (gebruik Fire1 of mappen in Input Manager)
-        if (Input.GetButtonDown("Fire1"))
-            return true;
-        
-        return false;
+        // Oculus OVR input (kan in Inspector aangepast worden)
+        return OVRInput.GetDown(ovrTriggerButton) || OVRInput.Get(ovrTriggerButton);
     }
 
     void DoRaycast()

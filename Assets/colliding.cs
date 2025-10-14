@@ -24,6 +24,9 @@ public class colliding : MonoBehaviour
     [SerializeField] private AudioClip destroyClip;
     [SerializeField, Range(0f, 1f)] private float destroyVolume = 1f;
 
+    // prefab dat gespawned wordt als de kogel iets raakt
+    [SerializeField] private GameObject spawnOnHit;
+
     private TextMeshProUGUI scoreTMP;
 
     private void Start()
@@ -78,7 +81,8 @@ public class colliding : MonoBehaviour
                 if (h.collider != null && h.collider.CompareTag("Target"))
                 {
                     Debug.Log($"[colliding] Raycast hit {h.collider.name}");
-                    ProcessHit(h.point, h.collider.transform);
+                    // geef ook de normale door zodat de splat correct op het oppervlak kan oriënteren
+                    ProcessHit(h.point, h.collider.transform, h.normal);
                     break;
                 }
             }
@@ -92,7 +96,7 @@ public class colliding : MonoBehaviour
         Debug.Log($"[colliding] OnCollisionEnter with {collision.gameObject.name} tag={collision.gameObject.tag}");
         try
         {
-            if (collision.gameObject.CompareTag("Gun")) return;
+            if (collision.gameObject.CompareTag("Gun") || collision.gameObject.CompareTag("Splat")) return;
             if (!collision.gameObject.CompareTag("Target"))
             {
                 Debug.Log($"[colliding] non-Target, destroying bullet. {collision.gameObject.name}, tag={collision.gameObject.tag}");
@@ -100,6 +104,25 @@ public class colliding : MonoBehaviour
                 if (!hitProcessed)
                 {
                     hitProcessed = true;
+                    // bepaal raakpunt en normale (indien beschikbaar) zodat de splat correct georiënteerd wordt
+                    Vector3 impactPoint = transform.position;
+                    Vector3 impactNormal = Vector3.zero;
+                    if (collision.contacts != null && collision.contacts.Length > 0)
+                    {
+                        impactPoint = collision.contacts[0].point;
+                        impactNormal = collision.contacts[0].normal;
+                    }
+                    else
+                    {
+                        impactPoint = transform.position;
+                        impactNormal = (impactPoint - collision.transform.position).normalized;
+                    }
+                    if (impactNormal == Vector3.zero) impactNormal = collision.transform.up != Vector3.zero ? collision.transform.up : Vector3.up;
+
+                    // spawn prefab bij impact en parent aan het object zodat het meebeweegt
+                    Vector3 spawnPos = impactPoint + impactNormal * 0.01f;
+                    SpawnOnHit(spawnPos, Quaternion.identity, collision.transform, impactNormal);
+
                     // speel geluid bij impact (zelfde destroyClip wordt gebruikt)
                     if (destroyClip != null && destroyVolume > 0f)
                     {
@@ -125,7 +148,12 @@ public class colliding : MonoBehaviour
             ? collision.contacts[0].point
             : pivot;
 
-        ProcessHit(contactPoint, targetT);
+        // gebruik contact normal indien beschikbaar zodat splat flush op het oppervlak komt
+        Vector3 contactNormal = (collision.contacts != null && collision.contacts.Length > 0)
+            ? collision.contacts[0].normal
+            : (contactPoint - pivot).normalized;
+
+        ProcessHit(contactPoint, targetT, contactNormal);
     }
 
     private void OnTriggerEnter(Collider other)
@@ -139,6 +167,15 @@ public class colliding : MonoBehaviour
                 if (!hitProcessed)
                 {
                     hitProcessed = true;
+                    // bepaal closest point en een redelijke normale zodat de splat correct georiënteerd wordt
+                    Vector3 closestPoint = other.ClosestPoint(transform.position);
+                    Vector3 approxNormal = (closestPoint - other.transform.position).normalized;
+                    if (approxNormal == Vector3.zero) approxNormal = other.transform.up != Vector3.zero ? other.transform.up : Vector3.up;
+
+                    Vector3 spawnPos = closestPoint + approxNormal * 0.01f;
+                    // parent aan het object zodat splat meebeweegt
+                    SpawnOnHit(spawnPos, Quaternion.identity, other.transform, approxNormal);
+
                     if (destroyClip != null && destroyVolume > 0f)
                     {
                         AudioSource.PlayClipAtPoint(destroyClip, transform.position, destroyVolume);
@@ -159,13 +196,17 @@ public class colliding : MonoBehaviour
 
         Transform targetT = other.transform;
         Vector3 pivot = targetT.position;
-        Vector3 closestPoint = other.ClosestPoint(transform.position);
+        Vector3 hitPoint = other.ClosestPoint(transform.position);
 
-        ProcessHit(closestPoint, targetT);
+        // ClosestPoint geeft geen normale; bereken een redelijke normale richting van het doel naar raakpunt
+        Vector3 hitNormal = (hitPoint - pivot).normalized;
+        if (hitNormal == Vector3.zero) hitNormal = targetT.up; // fallback
+
+        ProcessHit(hitPoint, targetT, hitNormal);
     }
 
     // centrale hit-verwerking
-    private void ProcessHit(Vector3 hitPoint, Transform targetT)
+    private void ProcessHit(Vector3 hitPoint, Transform targetT, Vector3 hitNormal)
     {
         if (hitProcessed) return;
         hitProcessed = true;
@@ -175,6 +216,19 @@ public class colliding : MonoBehaviour
         int points = DistanceToPoints(distance);
 
         Debug.Log($"distance: {distance}  points: {points}");
+
+        // spawn prefab precies op het raakpunt
+        // als geen normale is meegegeven, probeer uit positie tov pivot te berekenen
+        if (hitNormal == Vector3.zero) hitNormal = (hitPoint - pivot).normalized;
+        if (hitNormal == Vector3.zero) hitNormal = targetT.up; // laatste fallback
+
+        // kleine offset langs normale om z-fighting te vermijden
+        Vector3 spawnPos = hitPoint + hitNormal * 0.01f;
+        // oriënteer splat zodat de quad vlak op het oppervlak ligt (forward = normale)
+        // veel quads in Unity wijzen met +Z naar voren; probeer -hitNormal als de quad 'voor' naar -Z tekent
+        Quaternion spawnRot = Quaternion.LookRotation(-hitNormal, targetT.up);
+        // maak splat child van het target zodat hij mee beweegt/roteren met het doel
+        SpawnOnHit(spawnPos, spawnRot, targetT, hitNormal);
 
         // lees huidige score uit de UI, tel erbij en update
         int current = GetDisplayedScore();
@@ -281,5 +335,51 @@ public class colliding : MonoBehaviour
         }
 
         return 0;
+    }
+
+    // helper om prefab te spawnen (doet niets als prefab null is)
+    // normal: als niet Vector3.zero, dan wordt de rotatie aangepast zodat prefab's +Z op -normal wijst (quad vlak op oppervlak)
+    private void SpawnOnHit(Vector3 position, Quaternion rotation, Transform parent = null, Vector3 normal = default(Vector3))
+    {
+        if (spawnOnHit == null) return;
+
+        GameObject go;
+        if (parent == null) go = Instantiate(spawnOnHit, position, rotation);
+        else go = Instantiate(spawnOnHit, position, rotation, parent);
+
+        // maak 50% kleiner
+        go.transform.localScale = go.transform.localScale * 0.75f;
+
+        // als normale is meegegeven, forceer rotatie zodat quad op het oppervlak ligt
+        if (normal != Vector3.zero)
+        {
+            // veronderstel dat prefab's forward (+Z) de 'front' van de splat is.
+            // We willen dat de quad vlak op het oppervlak ligt, dus forward moet -normal zijn.
+            Vector3 up = (parent != null) ? parent.up : Vector3.up;
+            Quaternion rot = Quaternion.LookRotation(-normal, up);
+
+            // voeg een random z-rotatie toe
+            float randomZ = Random.Range(0f, 360f);
+            rot *= Quaternion.Euler(0f, 0f, randomZ);
+
+            go.transform.rotation = rot;
+        }
+
+        // geef het gespawnte object en alle kinderen de tag "Splat" (negeer als tag niet bestaat)
+        try
+        {
+            // include inactive children ook
+            var transforms = go.GetComponentsInChildren<Transform>(true);
+            foreach (var t in transforms)
+            {
+                t.gameObject.tag = "Splat";
+            }
+        }
+        catch (UnityException)
+        {
+            Debug.LogWarning("[colliding 01] Tag 'Splat' niet gedefinieerd. Maak deze aan via Edit → Project Settings → Tags and Layers.");
+        }
+        // vernietig het gespawnte object na 30 seconden om op te ruimen
+        Destroy(go, 30f);
     }
 }

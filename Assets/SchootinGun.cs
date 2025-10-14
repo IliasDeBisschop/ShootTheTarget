@@ -17,11 +17,12 @@ public class SchootinGun : MonoBehaviour
     public float shootCooldown = 0.5f; // stel in in Inspector
     private float nextFireTime = 0f;
 
+    // --- toegevoegd: renderers van child "preload Carrot" ---
+    private Renderer[] preloadCarrotRenderers;
+
     // Start is called before the first frame update
     void Start()
     {
-        UnityEngine.Debug.Log("Hello from Unity Debug!");
-        System.Diagnostics.Debug.WriteLine("Hello from System Debug!");
 
         grabable = GetComponent<OVRGrabbable>();
         
@@ -38,6 +39,21 @@ public class SchootinGun : MonoBehaviour
         }
         
         audioSource = GetComponent<AudioSource>();
+
+        // Zoek child met naam "preload Carrot" (recursief) en bewaar alle renderers
+        Transform pc = null;
+        foreach (Transform t in GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name == "preload Carrot")
+            {
+                pc = t;
+                break;
+            }
+        }
+        if (pc != null)
+        {
+            preloadCarrotRenderers = pc.GetComponentsInChildren<Renderer>(true);
+        }
     }
 
     // Update is called once per frame
@@ -61,6 +77,18 @@ public class SchootinGun : MonoBehaviour
 
             // Zet volgende schiettijd
             nextFireTime = Time.time + shootCooldown;
+
+            // Maak "preload Carrot" onzichtbaar direct bij vuren
+            if (preloadCarrotRenderers != null)
+            {
+                foreach (var r in preloadCarrotRenderers)
+                {
+                    if (r != null) r.enabled = false;
+                }
+            }
+
+            // Start coroutine om "preload Carrot" weer zichtbaar te maken na shootCooldown
+            StartCoroutine(ReenablePreloadCarrotAfterCooldown());
 
             // Check if required components are available
             if (bulletPrefab == null)
@@ -141,6 +169,19 @@ public class SchootinGun : MonoBehaviour
             {
                 UnityEngine.Debug.Log("Playing shoot sound");
                 audioSource.PlayOneShot(shootClip);
+            }
+        }
+    }
+
+    // Coroutine: wacht shootCooldown seconden en maak preload Carrot weer zichtbaar
+    private IEnumerator ReenablePreloadCarrotAfterCooldown()
+    {
+        yield return new WaitForSeconds(shootCooldown);
+        if (preloadCarrotRenderers != null)
+        {
+            foreach (var r in preloadCarrotRenderers)
+            {
+                if (r != null) r.enabled = true;
             }
         }
     }
