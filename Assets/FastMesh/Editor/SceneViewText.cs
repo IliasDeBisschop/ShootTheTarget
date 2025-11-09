@@ -2,12 +2,14 @@ using UnityEngine;
 
 #if UNITY_EDITOR
 using UnityEditor;
+#endif
 
 namespace FastMesh_Example
 {
     [ExecuteInEditMode]
     public class SceneViewText : MonoBehaviour
     {
+#if UNITY_EDITOR
         public bool isShow = true;
         string text2 = "These 3D models, all created with \"Fast Mesh - 3D Asset Creation Tool\" (click)";
         Color backgroundColor = Color.white;
@@ -25,14 +27,16 @@ namespace FastMesh_Example
 
         private void OnSceneGUI(SceneView sceneView)
         {
-            if (isShow == false) return;
+            if (!isShow) return;
 
             Handles.BeginGUI();
-            GUIStyle style = new GUIStyle(GUI.skin.label);
-            style.alignment = TextAnchor.MiddleCenter;
-            style.fontSize = 20;
-            style.normal.textColor = textColor;
-            style.wordWrap = true;
+            GUIStyle style = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 20,
+                normal = { textColor = textColor },
+                wordWrap = true
+            };
 
             float width = 420f;
             float height = 50f;
@@ -50,6 +54,6 @@ namespace FastMesh_Example
 
             Handles.EndGUI();
         }
+#endif
     }
 }
-#endif
